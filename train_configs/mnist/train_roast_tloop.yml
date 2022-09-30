@@ -1,0 +1,45 @@
+module: "TLoop"
+merge_logic: "merge-none"
+device_id: 0
+epochs: 10
+train_data:
+  file: "/home/apd10/experiments/projects/summary_based_learning/DATA/mnist//train.txt"
+  dataset: "gensvm"
+  gensvm:
+    dimension: 784
+    centering_info: "/home/apd10/experiments/projects/summary_based_learning/DATA/mnist/centering_info.npz"
+  sampler: "simple"
+  simple:
+    batch_size: 64
+progress_test_data:
+  file: "/home/apd10/experiments/projects/summary_based_learning/DATA/mnist//test.txt"
+  dataset: "gensvm"
+  gensvm:
+    dimension: 784
+    centering_info: "/home/apd10/experiments/projects/summary_based_learning/DATA/mnist/centering_info.npz"
+  sampler: "simple"
+  simple:
+    batch_size: 1000
+model:
+  name: "ROASTMLP"
+  ROASTMLP:
+    input_dim: 784
+    num_layers: 1
+    hidden_size: 1000
+    num_class: 10
+    compression: 0.5
+    seed: 101
+optimizer:
+  name: "adam"
+  adam:
+    lr: 0.001
+    weight_decay: 0
+loss:
+  name: "NLL"
+progress_evaluator:
+  name: "simple_print"
+  simple_print:
+      eval_itr: 1000000
+      eval_epoch: 1
+      skip_0: 1
+      csv_dump: "/home/apd10/experiments/projects/summary_based_learning/DATA/mnist/record/log.train.csv"
