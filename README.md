@@ -1,5 +1,4 @@
-# dataset is included in the repo to make it easy
-
+dataset is included in the repo to make it easy
+command lin
 run python3 run.py --config ./train_configs/mnist/train_roast_tloop.py
-
-# change the merge strategy to merge-wt to see the successful experiment.
+change the merge strategy to merge-wt to see the successful experiment.
