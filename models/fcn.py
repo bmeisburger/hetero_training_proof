@@ -202,6 +202,51 @@ class FakeRoastConv2d(nn.Module):
         return x
 
 
+class RoastConv2d(nn.Module):
+    def __init__(self, in_channels,
+                    out_channels,
+                    kernel_size,
+                    is_global,
+                    weight=None,
+                    init_scale=None,
+                    compression=None,
+                    stride=1,
+                    padding=0,
+                    dilation=1,
+                    groups=1, 
+                    bias=True):
+
+        super(RoastConv2d, self).__init__()
+        
+        if type(kernel_size) == int:
+            kernel_size = (kernel_size, kernel_size)
+        
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.groups = groups
+        self.is_bias = bias
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.W_shape = (out_channels, int(in_channels/groups), kernel_size[0], kernel_size[1])
+        
+        self.wsize = int(np.prod(self.W_shape) * compression)
+        self.weight = nn.Parameter(torch.zeros(self.wsize, dtype=torch.float), requires_grad=True)
+
+        k = 1.0 * groups / (in_channels * np.prod(kernel_size))
+        nn.init.uniform_(self.weight.data, a=-sqrt(k) , b = sqrt(k) )
+        
+        self.IDX = nn.Parameter(torch.randint(0, self.wsize, size=self.W_shape, dtype=torch.int64), requires_grad=False)
+        self.G = nn.Parameter(torch.randint(0, 2, size=self.W_shape, dtype=torch.float)*2 - 1, requires_grad=False)
+        self.bias = nn.Parameter(torch.zeros(out_channels))
+            
+    def forward(self, x):
+        W = torch.mul(self.weight[self.IDX], self.G)
+        x = torch.nn.functional.conv2d(x, W, bias=self.bias, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
+        return x
+
+
 # Conv2D ROAST Model
 class ROASTCNN(BaseModel):
     def __init__(self, in_channels,
@@ -218,13 +263,16 @@ class ROASTCNN(BaseModel):
         self.seed = seed
 
         # Define 2D convolutional layers
-        self.first_layer = FakeRoastConv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, is_global=False, compression=compression)
+        self.first_layer = RoastConv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, is_global=False, compression=compression)
         self.first_layer_relu = nn.ReLU()
+        self.first_layer_maxpool = nn.MaxPool2d(kernel_size=2)
         mid_layers = []
         for i in range(num_layers - 3):
-            mid_layers.append(FakeRoastConv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, is_global=False, compression=compression))
+            mid_layers.append(RoastConv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, is_global=False, compression=compression))
             mid_layers.append(nn.ReLU())
+            mid_layers.append(nn.MaxPool2d(kernel_size=2))
         self.mid_layers = nn.Sequential(*mid_layers)
+        self.flatten = nn.Flatten()
 
         # Define first fully connected layer
         self.fc1 = RoastLinear(hidden_size, hidden_size, compression)
@@ -236,8 +284,10 @@ class ROASTCNN(BaseModel):
     def forward(self, x):
         x = self.first_layer(x)
         x = self.first_layer_relu(x)
+        x = self.first_layer_maxpool
         for layer in self.mid_layers:
             x = layer(x)
+        x = self.flatten(x)
         x = self.fc1(x)
         x = self.fc1_relu(x)
         x = self.last_layer(x)
