@@ -34,11 +34,11 @@ class TLoop:
             datas['train'] = self.progress_train_data
         # model
         mparams = params["model"]
-        mparams["ROASTMLP"]["seed"] = 101
-        mparams["ROASTMLP"]["compression"] = 0.8
+        mparams[mparams["name"]]["seed"] = 101
+        mparams[mparams["name"]]["compression"] = 0.8
         self.model1 = Model.get(mparams)
-        mparams["ROASTMLP"]["seed"] = 105
-        mparams["ROASTMLP"]["compression"] = 0.6
+        mparams[mparams["name"]]["seed"] = 105
+        mparams[mparams["name"]]["compression"] = 0.6
         self.model2 = Model.get(mparams)
   
         if self.device_id != -1:
@@ -171,9 +171,9 @@ class TLoop:
 
                 x, y = self.train_data.next()
                 x1 = x[y < 5]
-                x2 = x[y>=5]
+                x2 = x[y >=5]
                 y1 = y[y < 5]
-                y2 = y[y>=5]
+                y2 = y[y >=5]
 
                 x1 = Variable(x1).cuda(self.device_id) if self.device_id!=-1 else Variable(x1)
                 y1 = Variable(y1).cuda(self.device_id) if self.device_id!=-1 else Variable(y1)
