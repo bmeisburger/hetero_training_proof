@@ -24,7 +24,8 @@ parser.add_argument('--config', action="store", dest="config", type=str, default
 results = parser.parse_args()
 config_file = results.config
 with open(config_file, "r") as f:
-  config = yaml.load(f)
+  #config = yaml.load(f) # deprecated
+  config = yaml.safe_load(f)
 if config['module'] == "TLoop":
   run = TLoop(config)
   run.loop()
