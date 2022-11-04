@@ -10,7 +10,9 @@ import pdb
 import numpy as np
 from tqdm import tqdm
 import pandas as pd
+from models.cnn import RoastConv2d
 from models.list_models import RoastLinear
+
 
 class TLoop:
     def __init__(self, params):
@@ -23,7 +25,7 @@ class TLoop:
         # data
         self.train_data = Data(params["train_data"])
         self.progress_test_data = Data(params["progress_test_data"])
-        datas = {"valid" : self.progress_test_data}
+        datas = {"valid": self.progress_test_data}
         self.test_data = None
         if "test_data" in params:
             self.test_data = Data(params["test_data"])
@@ -40,19 +42,20 @@ class TLoop:
         mparams[mparams["name"]]["seed"] = 105
         mparams[mparams["name"]]["compression"] = 0.6
         self.model2 = Model.get(mparams)
-  
+
         if self.device_id != -1:
-          self.model1 = self.model1.cuda(self.device_id)
-          self.model2 = self.model2.cuda(self.device_id)
+            self.model1 = self.model1.cuda(self.device_id)
+            self.model2 = self.model2.cuda(self.device_id)
         # optimizer
         self.optimizer1 = Optimizer.get(self.model1, params["optimizer"])
         self.optimizer2 = Optimizer.get(self.model2, params["optimizer"])
         # loss
         self.loss_func = Loss.get(params["loss"])
-        #if self.device_id != -1:
+        # if self.device_id != -1:
         #  self.loss_func = self.loss_func.cuda(self.device_id)
         # progress evaluator
-        self.progress_evaluator = ProgressEvaluator.get(params["progress_evaluator"], datas, self.device_id)
+        self.progress_evaluator = ProgressEvaluator.get(
+            params["progress_evaluator"], datas, self.device_id)
         self.metrics = []
         if "metrics" in params:
             self.metrics = params["metrics"].split(",")
@@ -83,50 +86,57 @@ class TLoop:
     def merge_logic_1(self, alpha=0.5):
         dic1, dic2 = {}, {}
         for n, m in self.model1.named_modules():
-            if type(m) == RoastLinear:
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
                 dic1[n] = (m.grad_comp_to_orig(m.weight.grad), m.bias.grad)
-          
+
         for n, m in self.model2.named_modules():
-            if type(m) == RoastLinear:
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
                 dic2[n] = (m.grad_comp_to_orig(m.weight.grad), m.bias.grad)
 
-        assert(sorted(dic1.keys()) == sorted(dic2.keys()))
+        assert (sorted(dic1.keys()) == sorted(dic2.keys()))
 
         for n, m in self.model1.named_modules():
-            if type(m) == RoastLinear:
-                grad_update_w, grad_update_b = m.grad_orig_to_comp(dic2[n][0]), dic2[n][1]
-                m.weight.grad = alpha * m.weight.grad + (1 - alpha) * grad_update_w
-                m.bias.grad = alpha * m.bias.grad + ( 1 - alpha) * grad_update_b
-          
-        for n, m in self.model2.named_modules():
-            if type(m) == RoastLinear:
-                grad_update_w, grad_update_b = m.grad_orig_to_comp(dic1[n][0]), dic1[n][1]
-                m.weight.grad = alpha * m.weight.grad + (1 - alpha) * grad_update_w
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
+                grad_update_w, grad_update_b = m.grad_orig_to_comp(
+                    dic2[n][0]), dic2[n][1]
+                m.weight.grad = alpha * m.weight.grad + \
+                    (1 - alpha) * grad_update_w
                 m.bias.grad = alpha * m.bias.grad + (1 - alpha) * grad_update_b
 
+        for n, m in self.model2.named_modules():
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
+                grad_update_w, grad_update_b = m.grad_orig_to_comp(
+                    dic1[n][0]), dic1[n][1]
+                m.weight.grad = alpha * m.weight.grad + \
+                    (1 - alpha) * grad_update_w
+                m.bias.grad = alpha * m.bias.grad + (1 - alpha) * grad_update_b
 
     def merge_logic_2(self, alpha=0.5):
         dic1, dic2 = {}, {}
         for n, m in self.model1.named_modules():
-            if type(m) == RoastLinear:
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
                 dic1[n] = (m.wt_comp_to_orig(m.weight.data), m.bias.data)
-          
+
         for n, m in self.model2.named_modules():
-            if type(m) == RoastLinear:
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
                 dic2[n] = (m.grad_comp_to_orig(m.weight.data), m.bias.data)
 
-        assert(sorted(dic1.keys()) == sorted(dic2.keys()))
+        assert (sorted(dic1.keys()) == sorted(dic2.keys()))
 
         for n, m in self.model1.named_modules():
-            if type(m) == RoastLinear:
-                wt_update_w, wt_update_b = m.wt_orig_to_comp(dic2[n][0]), dic2[n][1]
-                m.weight.data = alpha * m.weight.data + (1 - alpha) * wt_update_w
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
+                wt_update_w, wt_update_b = m.wt_orig_to_comp(
+                    dic2[n][0]), dic2[n][1]
+                m.weight.data = alpha * m.weight.data + \
+                    (1 - alpha) * wt_update_w
                 m.bias.data = alpha * m.bias.data + (1 - alpha) * wt_update_b
-          
+
         for n, m in self.model2.named_modules():
-            if type(m) == RoastLinear:
-                wt_update_w, wt_update_b = m.wt_orig_to_comp(dic1[n][0]), dic1[n][1]
-                m.weight.data = alpha * m.weight.data + (1 - alpha) * wt_update_w
+            if type(m) == RoastLinear or type(m) == RoastConv2d:
+                wt_update_w, wt_update_b = m.wt_orig_to_comp(
+                    dic1[n][0]), dic1[n][1]
+                m.weight.data = alpha * m.weight.data + \
+                    (1 - alpha) * wt_update_w
                 m.bias.data = alpha * m.bias.data + (1 - alpha) * wt_update_b
 
     def get_complete_data(self):
@@ -138,13 +148,12 @@ class TLoop:
         ys = []
         for i in tqdm(range(num_batches), disable=self.quiet):
             if self.train_data.end():
-              break
+                break
             x, y = self.train_data.next()
             xs.append(x)
             ys.append(y)
 
         return torch.cat(xs, dim=0).cuda(self.device_id), torch.cat(ys, dim=0).cuda(self.device_id)
-    
 
     def loop(self):
         epoch = 0
@@ -153,7 +162,7 @@ class TLoop:
             x_data, y_data = self.get_complete_data()
             self.model.set_data(x_data, y_data)
 
-        while epoch < self.epochs :
+        while epoch < self.epochs:
             self.train_data.reset()
             num_samples = self.train_data.len()
             batch_size = self.train_data.batch_size()
@@ -163,7 +172,7 @@ class TLoop:
             print("2", self.model2.last_layer.bias)
             for i in tqdm(range(num_batches), disable=self.quiet):
                 if self.train_data.end():
-                  break
+                    break
                 self.model1.train()
                 self.optimizer1.zero_grad()
                 self.model2.train()
@@ -171,15 +180,19 @@ class TLoop:
 
                 x, y = self.train_data.next()
                 x1 = x[y < 5]
-                x2 = x[y >=5]
+                x2 = x[y >= 5]
                 y1 = y[y < 5]
-                y2 = y[y >=5]
+                y2 = y[y >= 5]
 
-                x1 = Variable(x1).cuda(self.device_id) if self.device_id!=-1 else Variable(x1)
-                y1 = Variable(y1).cuda(self.device_id) if self.device_id!=-1 else Variable(y1)
+                x1 = Variable(x1).cuda(
+                    self.device_id) if self.device_id != -1 else Variable(x1)
+                y1 = Variable(y1).cuda(
+                    self.device_id) if self.device_id != -1 else Variable(y1)
 
-                x2 = Variable(x2).cuda(self.device_id) if self.device_id!=-1 else Variable(x2)
-                y2 = Variable(y2).cuda(self.device_id) if self.device_id!=-1 else Variable(y2)
+                x2 = Variable(x2).cuda(
+                    self.device_id) if self.device_id != -1 else Variable(x2)
+                y2 = Variable(y2).cuda(
+                    self.device_id) if self.device_id != -1 else Variable(y2)
                 output1 = self.model1(x1)
                 output2 = self.model2(x2)
 
@@ -193,7 +206,7 @@ class TLoop:
                     loss2 = self.loss_func(output2, y2)
                 loss1.backward()
                 loss2.backward()
-                
+
                 if self.merge_logic == "merge-grad":
                     self.merge_logic_1()
                     self.optimizer1.step()
@@ -209,8 +222,10 @@ class TLoop:
                 #print("-1-", torch.sum(self.model1.first_layer.weight))
                 #print("-2-", torch.sum(self.model2.first_layer.weight))
 
-                self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model1, self.loss_func, metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
-                self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model2, self.loss_func, metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
+                self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model1, self.loss_func,
+                                                 metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
+                self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model2, self.loss_func,
+                                                 metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
 
                 if self.model_internal_logging_itr > 0 and iteration % self.model_internal_logging_itr == 0:
                     self.model.logger(iteration, True)
@@ -218,17 +233,21 @@ class TLoop:
                     logdata2 = self.model2.get_logged_data(True)
                     if len(logdata1['iterations']) > 0:
                         df = pd.DataFrame(logdata1)
-                        df.to_csv(self.model_log_file.strip(".csv") + "1.csv", index=False)
+                        df.to_csv(self.model_log_file.strip(
+                            ".csv") + "1.csv", index=False)
                     if len(logdata2['iterations']) > 0:
                         df = pd.DataFrame(logdata1)
-                        df.to_csv(self.model_log_file.strip(".csv") + "2.csv", index=False)
+                        df.to_csv(self.model_log_file.strip(
+                            ".csv") + "2.csv", index=False)
                 iteration = iteration + 1
                 loc_itr = loc_itr + 1
                 #print("Loss", loss)
             epoch = epoch + 1
 
-        self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model1, self.loss_func, metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
-        self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model2, self.loss_func, metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
+        self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model1, self.loss_func,
+                                         metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
+        self.progress_evaluator.evaluate(epoch, loc_itr, iteration, self.model2, self.loss_func,
+                                         metrics=self.metrics, binary=self.binary, regression=self.regression, split_label=True)
 
         if self.model_internal_logging_itr > 0 and iteration % self.model_internal_logging_itr == 0:
             self.model.logger(iteration, True)
@@ -236,7 +255,9 @@ class TLoop:
             logdata2 = self.model2.get_logged_data(True)
             if len(logdata1['iterations']) > 0:
                 df = pd.DataFrame(logdata1)
-                df.to_csv(self.model_log_file.strip(".csv") + "1.csv", index=False)
+                df.to_csv(self.model_log_file.strip(
+                    ".csv") + "1.csv", index=False)
             if len(logdata2['iterations']) > 0:
                 df = pd.DataFrame(logdata1)
-                df.to_csv(self.model_log_file.strip(".csv") + "2.csv", index=False)
+                df.to_csv(self.model_log_file.strip(
+                    ".csv") + "2.csv", index=False)

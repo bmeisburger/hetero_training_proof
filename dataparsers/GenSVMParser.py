@@ -4,9 +4,10 @@ from torch.utils import data
 import pdb
 
 from dataparsers.BasicParser import *
- 
+
 
 class GenSVMFormatParser(BasicParser):
+    
     def __init__(self, X_file, params):
         super(GenSVMFormatParser, self).__init__()
         with open(X_file, 'r+') as xfile:
@@ -31,7 +32,7 @@ class GenSVMFormatParser(BasicParser):
         self.regression = False
         if "regression" in params:
             self.regression = params["regression"]
-    
+
         if "centering_info" in params:
             self.center = True
             f = params["centering_info"]
@@ -44,9 +45,9 @@ class GenSVMFormatParser(BasicParser):
             if self.regression:
                 self.y_mu, self.y_std = r["y_mean"], r["y_std"]
 
-
     def __len__(self):
         return self.length
+
     def __getitem__(self, index):
         data_point = np.zeros(self.dim)
         data = self.X[index].strip().split(" ")
@@ -57,12 +58,13 @@ class GenSVMFormatParser(BasicParser):
                 label = 0
         else:
             label = float(data[0])
-            
+
         xdata = data[1:]
 
         for xd in xdata:
             temp = xd.split(":")
-            data_point[int(temp[0]) - self.base_idx] = float(temp[1]) / self.normalizer_const
+            data_point[int(temp[0]) - self.base_idx] = float(temp[1]
+                                                             ) / self.normalizer_const
 
         if self.center:
             if self.no_scale:
@@ -74,4 +76,3 @@ class GenSVMFormatParser(BasicParser):
                 if self.regression:
                     label = (label - self.y_mu) / (self.y_std + 1e-5)
         return data_point, label
-
